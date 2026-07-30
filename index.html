@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ふりがな Excel 生成ツール</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
+<style>
+  :root{
+    --bg:#f4f8f5;
+    --panel:#ffffff;
+    --ink:#1c2b22;
+    --sub:#5b6b60;
+    --line:#dbe8de;
+    --accent:#107C41;
+    --accent-dark:#185C37;
+    --accent-ink:#ffffff;
+    --warn-bg:#fbeee9;
+    --warn-ink:#8a4326;
+    --ok-bg:#e6f4ea;
+    --ok-ink:#185C37;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Hiragino Sans","Yu Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:40px 20px 100px;}
+  header.hero{margin-bottom:36px;}
+  header.hero h1{
+    font-size:26px;
+    margin:0 0 8px;
+    letter-spacing:.01em;
+    color:var(--accent-dark);
+  }
+  header.hero p{
+    margin:0;
+    color:var(--sub);
+    font-size:14.5px;
+  }
+  .section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:24px 24px 26px;
+    margin-bottom:20px;
+  }
+  .section h2{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:15px;
+    margin:0 0 18px;
+    color:var(--ink);
+  }
+  .section h2 .num{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:22px;height:22px;
+    border-radius:50%;
+    background:var(--accent);
+    color:var(--accent-ink);
+    font-size:11px;
+    font-weight:600;
+  }
+  .field{margin-bottom:16px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{
+    display:block;
+    font-size:12.5px;
+    color:var(--sub);
+    margin-bottom:6px;
+  }
+  .row{display:flex;gap:14px;flex-wrap:wrap;}
+  .row .field{flex:1;min-width:150px;}
+  input[type=number], input[type=text], select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-size:14px;
+    background:#fff;
+    color:var(--ink);
+  }
+  input[type=range]{width:100%;accent-color:var(--accent);}
+  .range-val{font-size:12.5px;color:var(--sub);margin-top:4px;}
+
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:8px;
+    padding:28px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    background:#fbfdfc;
+  }
+  .dropzone.drag{border-color:var(--accent); background:#eef7f1;}
+  .dropzone .fname{margin-top:10px;font-size:13.5px;color:var(--ink);font-weight:600;}
+  .dropzone .hint{font-size:12.5px;color:var(--sub);margin-top:4px;}
+  input[type=file]{display:none;}
+
+  .badge{
+    display:inline-block;
+    font-size:11px;
+    padding:2px 8px;
+    border-radius:999px;
+    margin-left:8px;
+    font-weight:600;
+    background:var(--ok-bg);
+    color:var(--ok-ink);
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:var(--accent);
+    color:var(--accent-ink);
+    border:none;
+    padding:11px 22px;
+    border-radius:7px;
+    font-size:14.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn:disabled{background:#b9c4bc;cursor:not-allowed;}
+  .btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+
+  .status{
+    margin-top:16px;
+    font-size:13.5px;
+    color:var(--sub);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .spinner{
+    width:14px;height:14px;
+    border:2px solid var(--line);
+    border-top-color:var(--accent);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+    display:none;
+  }
+  .spinner.on{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .notice{
+    border-radius:8px;
+    padding:12px 14px;
+    font-size:13px;
+    margin-bottom:16px;
+  }
+  .notice.warn{background:var(--warn-bg);color:var(--warn-ink);}
+  .notice.ok{background:var(--ok-bg);color:var(--ok-ink);}
+
+  .log{
+    margin-top:18px;
+    max-height:280px;
+    overflow-y:auto;
+    border:1px solid var(--line);
+    border-radius:8px;
+  }
+  .log table{width:100%;border-collapse:collapse;font-size:13px;}
+  .log th, .log td{
+    text-align:left;
+    padding:8px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  .log th{position:sticky;top:0;background:#f4faf6;color:var(--sub);font-weight:600;font-size:11.5px;}
+  .log ruby rt{font-size:9px;color:var(--sub);}
+  .log .unresolved{background:#fde3d3;border-bottom:2px dotted var(--warn-ink);cursor:help;}
+  .log .loc{color:var(--sub);font-size:11.5px;white-space:nowrap;}
+
+  footer.note{
+    text-align:center;
+    color:var(--sub);
+    font-size:12px;
+    margin-top:28px;
+  }
+  a.plain{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>ふりがな Excel 生成</h1>
+    <p>アップロードした Excel(.xlsx) の日本語にふりがなを自動で付与し、ファイルとして書き出します。処理はすべてブラウザ内で完結し、ファイルの内容は外部送信されません。</p>
+  </header>
+
+  <div class="section">
+    <h2><span class="num">01</span>設定</h2>
+    <div class="row">
+      <div class="field">
+        <label for="rubyReadingType">ふりがなの種類</label>
+        <select id="rubyReadingType">
+          <option value="hiragana" selected>ひらがな</option>
+          <option value="katakana">カタカナ</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="rubyAlign">配置</label>
+        <select id="rubyAlign">
+          <option value="noControl">指定なし</option>
+          <option value="left" selected>左寄せ</option>
+          <option value="center">中央揃え</option>
+          <option value="distributed">均等割り付け</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="rubyFontSize">ふりがなフォントサイズ(pt)</label>
+        <input type="number" id="rubyFontSize" min="5" max="72" step="0.5" placeholder="自動">
+        <div class="hint" style="font-size:12px;color:var(--sub);margin-top:4px;">自動の場合、セルの文字サイズの約半分(下限5pt)を自動計算します(例：本文11pt→ふりがな6pt)</div>
+      </div>
+      <div class="field">
+        <label for="rubyFontName">ふりがなフォント名</label>
+        <select id="rubyFontName">
+          <option value="" selected>自動(元セルと同じ)</option>
+          <optgroup label="ゴシック系">
+            <option value="游ゴシック">游ゴシック</option>
+            <option value="游ゴシック Light">游ゴシック Light</option>
+            <option value="メイリオ">メイリオ</option>
+            <option value="MS ゴシック">MS ゴシック</option>
+            <option value="MS Pゴシック">MS Pゴシック</option>
+          </optgroup>
+          <optgroup label="明朝系">
+            <option value="游明朝">游明朝</option>
+            <option value="MS 明朝">MS 明朝</option>
+            <option value="MS P明朝">MS P明朝</option>
+          </optgroup>
+          <optgroup label="ユニバーサルデザイン(読みやすさ重視)">
+            <option value="BIZ UDゴシック">BIZ UDゴシック</option>
+            <option value="BIZ UDPゴシック">BIZ UDPゴシック</option>
+            <option value="BIZ UD明朝">BIZ UD明朝</option>
+            <option value="BIZ UDP明朝">BIZ UDP明朝</option>
+            <option value="UD デジタル 教科書体 NK-R">UD デジタル 教科書体 NK-R</option>
+          </optgroup>
+          <optgroup label="Mac標準">
+            <option value="ヒラギノ角ゴ ProN">ヒラギノ角ゴ ProN</option>
+            <option value="ヒラギノ明朝 ProN">ヒラギノ明朝 ProN</option>
+            <option value="ヒラギノ丸ゴ ProN">ヒラギノ丸ゴ ProN</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+    <div class="hint" style="font-size:12px;color:var(--sub);margin-top:-8px;margin-bottom:12px;">
+      フォントサイズ・フォント名を指定すると、そのフォントがブック内に無ければ自動で追加して参照します。フォント名が「自動」の場合は元のセルと同じフォントを、フォントサイズが「自動」の場合はセルの文字サイズの約半分(下限5pt)を使います。指定したフォントが開く側のパソコンに無い場合、Excelが代替フォントで表示します(通常のExcelの挙動と同じです)。
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="overwriteExisting" checked style="width:auto;">
+        <span>Excel/元ファイルに既にふりがな(読み仮名)が設定されているセルも、上書きして統一的に再生成する</span>
+      </label>
+      <div class="hint" style="font-size:12px;color:var(--sub);margin-top:4px;">
+        Excelは日本語をIME変換して入力するだけで自動的にふりがな情報(多くはカタカナ)を保存します。オフにすると、そういった既存のふりがなを持つセルはそのまま残されます(意図的に手直しした読みを保護したい場合はオフにしてください)。
+      </div>
+    </div>
+    <div class="field">
+      <label for="customDict">カスタム辞書(任意) — 人名や専門用語の読みを指定</label>
+      <textarea id="customDict" rows="3" placeholder="例：&#10;髙橋,たかはし&#10;認定日本語教育機関,にほんごきょういくきかん" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:var(--mono);resize:vertical;"></textarea>
+      <div class="hint" style="font-size:12px;color:var(--sub);margin-top:4px;">
+        1行に「単語,読み」の形式で指定してください。辞書(kuromoji.js)に登録されていない人名・異体字・専門用語は自動では読みを推定できないため、ここで指定した語が優先されます。
+      </div>
+    </div>
+    <div class="notice ok" style="margin-top:8px;margin-bottom:0;">
+      Excel 標準の「ふりがな」機能(セルのプロパティ)として埋め込みます。生成後は Excel 上でセルを選んで「ふりがなの表示」からも確認・編集できます。
+    </div>
+  </div>
+
+  <div class="section">
+    <h2><span class="num">02</span>ファイルをアップロード</h2>
+    <div class="dropzone" id="dropzone">
+      <div>ここにファイルをドラッグ、またはクリックして選択</div>
+      <div class="hint">.xlsx (Excel)</div>
+      <div class="fname" id="fname"></div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx">
+  </div>
+
+  <div class="section">
+    <h2><span class="num">03</span>生成</h2>
+    <button class="btn" id="generateBtn" disabled>▶ ふりがなを付けて生成</button>
+    <div class="status">
+      <span class="spinner" id="spinner"></span>
+      <span id="statusText">ファイルを選択してください</span>
+    </div>
+  </div>
+
+  <div class="section" id="previewSection" style="display:none;">
+    <h2><span class="num">04</span>付与したふりがな一覧(プレビュー)</h2>
+    <div id="previewNotice"></div>
+    <div class="log">
+      <table>
+        <thead><tr><th style="width:110px;">位置</th><th>内容</th></tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="note">形態素解析: kuromoji.js(IPADIC) / すべての処理はブラウザ内で完結します</footer>
+</div>
+
+<script>
+const KANJI_RE = /[\u4e00-\u9faf\u3400-\u4dbf]/;
+const SS_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+let tokenizerPromise = null;
+let selectedFile = null;
+const previewRows = [];
+
+function containsKanji(s){ return KANJI_RE.test(s); }
+
+function katakanaToHiragana(s){
+  return s.replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+
+function getTokenizer(){
+  if (tokenizerPromise) return tokenizerPromise;
+  tokenizerPromise = new Promise((resolve, reject) => {
+    kuromoji.builder({ dicPath: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/" }).build((err, tokenizer) => {
+      if (err) reject(err); else resolve(tokenizer);
+    });
+  });
+  return tokenizerPromise;
+}
+
+function readingTypeSuffix(){
+  return document.getElementById("rubyReadingType").value === "katakana" ? "katakana" : "hiragana";
+}
+
+// Custom dictionary: lines like "髙橋,たかはし" (comma/tab/、/whitespace separated).
+// Longer terms are matched first so multi-character entries take priority.
+function parseCustomDict(){
+  const raw = document.getElementById("customDict") ? document.getElementById("customDict").value : "";
+  const entries = [];
+  for (const line of raw.split(/\r?\n/)){
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split(/[,\t、]+|\s+/).filter(Boolean);
+    if (parts.length >= 2) entries.push({ term: parts[0], reading: parts[1] });
+  }
+  entries.sort((a,b) => b.term.length - a.term.length);
+  return entries;
+}
+
+function findCustomRanges(text, customDict, toHira){
+  const used = new Array(text.length).fill(false);
+  const ranges = [];
+  for (const entry of customDict){
+    let from = 0;
+    while (true){
+      const idx = text.indexOf(entry.term, from);
+      if (idx === -1) break;
+      const end = idx + entry.term.length;
+      let overlap = false;
+      for (let i=idx;i<end;i++) if (used[i]) { overlap = true; break; }
+      if (!overlap){
+        const reading = toHira ? katakanaToHiragana(entry.reading) : entry.reading;
+        ranges.push({ sb: idx, eb: end, reading, custom: true });
+        for (let i=idx;i<end;i++) used[i] = true;
+      }
+      from = idx + 1;
+    }
+  }
+  return { ranges, used };
+}
+
+// Returns { ranges, unresolved }. `ranges` covers both custom-dictionary matches
+// (priority) and kuromoji's automatic tokenization. `unresolved` lists kanji
+// spans kuromoji recognized but could not supply a reading for (typically
+// proper nouns / rare kanji variants not in the general-purpose dictionary) -
+// these are flagged in the preview instead of silently skipped.
+function getFuriganaRanges(text, tokenizer){
+  const toHira = readingTypeSuffix() === "hiragana";
+  const customDict = parseCustomDict();
+  const { ranges: customRanges, used } = findCustomRanges(text, customDict, toHira);
+
+  const tokens = tokenizer.tokenize(text);
+  const autoRanges = [];
+  const unresolved = [];
+  let pos = 0;
+  for (const t of tokens){
+    const surface = t.surface_form;
+    const start = pos, end = pos + surface.length;
+    pos = end;
+    if (!containsKanji(surface)) continue;
+    let overlapsUsed = false;
+    for (let i=start;i<end;i++) if (used[i]) { overlapsUsed = true; break; }
+    if (overlapsUsed) continue;
+    if (t.reading){
+      const reading = toHira ? katakanaToHiragana(t.reading) : t.reading;
+      autoRanges.push({ sb:start, eb:end, reading, custom:false });
+    } else {
+      unresolved.push({ sb:start, eb:end, surface });
+    }
+  }
+  const ranges = customRanges.concat(autoRanges).sort((a,b) => a.sb - b.sb);
+  return { ranges, unresolved };
+}
+
+function setStatus(msg, spinning){
+  document.getElementById("statusText").textContent = msg;
+  document.getElementById("spinner").classList.toggle("on", !!spinning);
+}
+
+function addPreviewRow(loc, surfaceHtml){
+  const tbody = document.getElementById("previewBody");
+  const tr = document.createElement("tr");
+  const tdLoc = document.createElement("td");
+  tdLoc.className = "loc";
+  tdLoc.textContent = loc;
+  const tdText = document.createElement("td");
+  tdText.innerHTML = surfaceHtml;
+  tr.appendChild(tdLoc);
+  tr.appendChild(tdText);
+  tbody.appendChild(tr);
+}
+
+// Merge furigana ranges AND unresolved spans into one HTML string for preview:
+// resolved kanji get <ruby>, unresolved kanji get a highlighted "not found" marker.
+function buildRubyHtml(text, ranges, unresolved){
+  const marks = ranges.map(r => ({ sb:r.sb, eb:r.eb, type:"ruby", reading:r.reading }))
+    .concat((unresolved || []).map(u => ({ sb:u.sb, eb:u.eb, type:"unresolved" })))
+    .sort((a,b) => a.sb - b.sb);
+  let html = "";
+  let cursor = 0;
+  for (const m of marks){
+    html += escapeHtml(text.slice(cursor, m.sb));
+    const chunk = escapeHtml(text.slice(m.sb, m.eb));
+    if (m.type === "ruby"){
+      html += "<ruby>" + chunk + "<rt>" + escapeHtml(m.reading) + "</rt></ruby>";
+    } else {
+      html += '<span class="unresolved" title="辞書から読みを特定できませんでした">' + chunk + "</span>";
+    }
+    cursor = m.eb;
+  }
+  html += escapeHtml(text.slice(cursor));
+  return html;
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ---------------- Excel (.xlsx) processing ---------------- */
+/* Strategy: never re-serialize the whole XML document (subtle serializer
+   differences from Excel's own writer are what caused "repaired file"
+   errors). Instead, parse with DOMParser only to DECIDE what needs
+   furigana, then splice the new <rPh>/<phoneticPr> markup as raw text
+   into the ORIGINAL xml string at precise offsets, leaving everything
+   else byte-for-byte untouched.
+
+   Many real-world Japanese Excel files ALREADY carry Excel's own
+   auto-generated phonetic data (created silently whenever text is typed
+   via IME) - almost always in katakana. By default we OVERWRITE that
+   pre-existing data with freshly generated, consistent furigana (in the
+   user's chosen reading type) rather than skipping those cells, since
+   skipping left the output looking "half done". */
+
+function getSiPlainText(siEl){
+  // Only read direct <t> content and <r><t> (rich-text run) content;
+  // explicitly skip any <t> nested inside a pre-existing <rPh> (reading data),
+  // since that is NOT part of the actual cell text.
+  let text = "";
+  for (let i=0;i<siEl.childNodes.length;i++){
+    const node = siEl.childNodes[i];
+    if (node.nodeType !== 1) continue;
+    if (node.localName === "t"){
+      text += node.textContent;
+    } else if (node.localName === "r"){
+      const ts = node.getElementsByTagNameNS(SS_NS, "t");
+      for (let j=0;j<ts.length;j++) text += ts[j].textContent;
+    }
+    // <rPh> and <phoneticPr> are intentionally ignored here.
+  }
+  return text;
+}
+
+function escapeXmlText(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function escapeXmlAttr(s){
+  return s.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function rubyAlignmentValue(){
+  const el = document.getElementById("rubyAlign");
+  return el ? el.value : "left";
+}
+
+function rubyFontOverrides(){
+  const nameEl = document.getElementById("rubyFontName");
+  const sizeEl = document.getElementById("rubyFontSize");
+  const name = nameEl && nameEl.value.trim() ? nameEl.value.trim() : null;
+  const size = sizeEl && sizeEl.value.trim() ? parseFloat(sizeEl.value.trim()) : null;
+  return { name, size };
+}
+
+// Auto ruby size: roughly half the cell's own font size (e.g. 11pt body -> 6pt
+// ruby), with a 5pt floor so it never becomes illegibly small.
+function autoRubySize(mainSizePt){
+  return Math.max(Math.round(mainSizePt / 2), 5);
+}
+
+// Loads the workbook's font table (xl/styles.xml <fonts>) plus the cellXfs
+// fontId lookup, as a mutable in-memory structure that findOrRegisterFont()
+// can extend with new entries as needed while processing.
+async function loadFontTable(zip){
+  const stylesPath = "xl/styles.xml";
+  const stylesFile = zip.file(stylesPath);
+  if (!stylesFile) return null;
+  const rawXml = await stylesFile.async("string");
+  const doc = new DOMParser().parseFromString(rawXml, "text/xml");
+  const fontsEls = doc.getElementsByTagNameNS(SS_NS, "fonts");
+  const fontEls = fontsEls.length ? fontsEls[0].getElementsByTagNameNS(SS_NS, "font") : [];
+  const fonts = [];
+  for (let i=0;i<fontEls.length;i++){
+    const f = fontEls[i];
+    const szEl = f.getElementsByTagNameNS(SS_NS, "sz")[0];
+    const nameEl = f.getElementsByTagNameNS(SS_NS, "name")[0];
+    fonts.push({ sz: szEl ? parseFloat(szEl.getAttribute("val")) : 11, name: nameEl ? nameEl.getAttribute("val") : null });
+  }
+  const cellXfsEls = doc.getElementsByTagNameNS(SS_NS, "cellXfs");
+  const cellXfs = [];
+  if (cellXfsEls.length){
+    const xfEls = cellXfsEls[0].getElementsByTagNameNS(SS_NS, "xf");
+    for (let i=0;i<xfEls.length;i++){
+      if (xfEls[i].parentNode !== cellXfsEls[0]) continue;
+      const fontId = xfEls[i].getAttribute("fontId");
+      cellXfs.push(fontId != null ? parseInt(fontId, 10) : 0);
+    }
+  }
+  return { fonts, cellXfs, rawXml, newFonts: [] };
+}
+
+function fontSizeForStyle(fontTable, styleIndex){
+  if (!fontTable) return 11;
+  const idx = (styleIndex != null && fontTable.cellXfs[styleIndex] != null) ? styleIndex : 0;
+  const fontId = fontTable.cellXfs[idx] != null ? fontTable.cellXfs[idx] : 0;
+  const font = fontTable.fonts[fontId];
+  return font && font.sz ? font.sz : 11;
+}
+
+function fontNameForStyle(fontTable, styleIndex){
+  if (!fontTable) return null;
+  const idx = (styleIndex != null && fontTable.cellXfs[styleIndex] != null) ? styleIndex : 0;
+  const fontId = fontTable.cellXfs[idx] != null ? fontTable.cellXfs[idx] : 0;
+  const font = fontTable.fonts[fontId];
+  return font ? font.name : null;
+}
+
+// Finds an existing font matching (name, size) in the table, or registers a
+// new one (queued for writing back to styles.xml). name may be null (match
+// on size only).
+function findOrRegisterFont(fontTable, name, size){
+  if (!fontTable) return 0;
+  for (let i=0;i<fontTable.fonts.length;i++){
+    const f = fontTable.fonts[i];
+    if (name && f.name !== name) continue;
+    if (size && f.sz !== size) continue;
+    return i;
+  }
+  const newIndex = fontTable.fonts.length;
+  fontTable.fonts.push({ name, sz: size });
+  fontTable.newFonts.push({ name, sz: size });
+  return newIndex;
+}
+
+function buildStylesXmlWithNewFonts(fontTable){
+  if (!fontTable || fontTable.newFonts.length === 0) return null;
+  const rawXml = fontTable.rawXml;
+  const totalCount = fontTable.fonts.length;
+  const fontsOpenTagMatch = /<fonts\b[^>]*>/.exec(rawXml);
+  if (!fontsOpenTagMatch) return null;
+  const openTag = fontsOpenTagMatch[0];
+  const newOpenTag = /count="\d+"/.test(openTag)
+    ? openTag.replace(/count="\d+"/, `count="${totalCount}"`)
+    : openTag.replace("<fonts", `<fonts count="${totalCount}"`);
+  let newXml = rawXml.slice(0, fontsOpenTagMatch.index) + newOpenTag + rawXml.slice(fontsOpenTagMatch.index + openTag.length);
+
+  let newFontsXml = "";
+  for (const nf of fontTable.newFonts){
+    let inner = "";
+    if (nf.sz) inner += `<sz val="${nf.sz}"/>`;
+    if (nf.name) inner += `<name val="${escapeXmlAttr(nf.name)}"/>`;
+    newFontsXml += `<font>${inner}</font>`;
+  }
+  const closeIdx = newXml.indexOf("</fonts>");
+  newXml = newXml.slice(0, closeIdx) + newFontsXml + newXml.slice(closeIdx);
+  return newXml;
+}
+
+// A shared string can be referenced by multiple cells with different styles,
+// but its <phoneticPr> (and therefore its font) is a single, shared property.
+// We use the first cell we find referencing each shared string as the
+// representative style for auto-sizing purposes.
+async function buildSharedStringStyleMap(zip){
+  const map = new Map();
+  const sheetFiles = Object.keys(zip.files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f));
+  for (const sheetPath of sheetFiles){
+    const rawXml = await zip.file(sheetPath).async("string");
+    const doc = new DOMParser().parseFromString(rawXml, "text/xml");
+    const cells = doc.getElementsByTagNameNS(SS_NS, "c");
+    for (let i=0;i<cells.length;i++){
+      const c = cells[i];
+      if (c.getAttribute("t") === "s"){
+        const vEl = c.getElementsByTagNameNS(SS_NS, "v")[0];
+        if (!vEl) continue;
+        const idx = parseInt(vEl.textContent, 10);
+        if (map.has(idx)) continue;
+        const s = c.getAttribute("s");
+        map.set(idx, s != null ? parseInt(s, 10) : 0);
+      }
+    }
+  }
+  return map;
+}
+
+function buildFuriganaFragment(ranges, fontId){
+  let frag = "";
+  for (const r of ranges){
+    frag += `<rPh sb="${r.sb}" eb="${r.eb}"><t>${escapeXmlText(r.reading)}</t></rPh>`;
+  }
+  frag += `<phoneticPr fontId="${fontId}" type="${readingTypeSuffix() === "hiragana" ? "Hiragana" : "fullwidthKatakana"}" alignment="${rubyAlignmentValue()}"/>`;
+  return frag;
+}
+
+// Finds <tagName>...</tagName> (or self-closing) blocks in raw XML text, in document order.
+function findContainerBlocks(rawText, tagName){
+  const re = new RegExp(`<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}>|<${tagName}\\b[^>]*\\/>`, "g");
+  const blocks = [];
+  let m;
+  while ((m = re.exec(rawText)) !== null){
+    const full = m[0];
+    const selfClosing = /\/>\s*$/.test(full);
+    blocks.push({
+      start: m.index,
+      end: m.index + full.length,
+      selfClosing,
+      text: full,
+    });
+  }
+  return blocks;
+}
+
+function hasExistingFurigana(blockText){
+  return /<rPh\b/.test(blockText) || /<phoneticPr\b/.test(blockText);
+}
+
+function stripExistingFurigana(blockText){
+  return blockText
+    .replace(/<rPh\b[^>]*>[\s\S]*?<\/rPh>/g, "")
+    .replace(/<phoneticPr\b[^>]*\/>/g, "")
+    .replace(/<phoneticPr\b[^>]*>[\s\S]*?<\/phoneticPr>/g, "");
+}
+
+// Rebuilds a container block ("<si>...</si>" or "<is>...</is>"): strips any
+// stale rPh/phoneticPr and inserts a fresh fragment before the closing tag.
+function rebuildBlock(blockText, closeTagName, ranges, safeFontId){
+  const stripped = stripExistingFurigana(blockText);
+  const closeTag = `</${closeTagName}>`;
+  const idx = stripped.lastIndexOf(closeTag);
+  const fragment = buildFuriganaFragment(ranges, safeFontId);
+  return stripped.slice(0, idx) + fragment + stripped.slice(idx);
+}
+
+// Range-based edits: {start, end, text}. end===start behaves as pure insertion.
+function applyReplacements(rawText, edits){
+  const sorted = edits.slice().sort((a,b) => b.start - a.start);
+  let result = rawText;
+  for (const e of sorted){
+    result = result.slice(0, e.start) + e.text + result.slice(e.end);
+  }
+  return result;
+}
+
+// Finds a <c ...> opening tag for a given cell ref and returns where to insert ` ph="1"`.
+function findPhAttrInsertion(rawXml, ref){
+  if (!ref) return null;
+  const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`<c\\b[^>]*?\\br="${escapedRef}"[^>]*>`);
+  const m = re.exec(rawXml);
+  if (!m) return null;
+  const tagText = m[0];
+  if (/\bph="1"/.test(tagText)) return null; // already marked
+  const pos = m.index + tagText.length - 1;
+  return { start: pos, end: pos, text: ' ph="1"' };
+}
+
+function overwriteExistingEnabled(){
+  const el = document.getElementById("overwriteExisting");
+  return el ? el.checked : true;
+}
+
+async function processExcel(arrayBuffer, onProgress){
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  const tokenizer = await getTokenizer();
+  const { name: userFontName, size: userFontSize } = rubyFontOverrides();
+  const fontTable = await loadFontTable(zip);
+  const overwriteExisting = overwriteExistingEnabled();
+  const modifiedSiIndexes = new Set();
+
+  // Resolves the fontId to use for a given cell's style: honors explicit
+  // user overrides, otherwise falls back to the cell's own font name and/or
+  // an auto-computed ruby size (half the cell's font size, 5pt floor).
+  function resolveFontId(styleIndex){
+    const cellSize = fontSizeForStyle(fontTable, styleIndex);
+    const cellName = fontNameForStyle(fontTable, styleIndex);
+    const targetName = userFontName || cellName;
+    const targetSize = userFontSize || autoRubySize(cellSize);
+    return findOrRegisterFont(fontTable, targetName, targetSize);
+  }
+
+  const sharedStringsPath = "xl/sharedStrings.xml";
+  const sharedStringsFile = zip.file(sharedStringsPath);
+
+  if (sharedStringsFile){
+    const sharedStringStyleMap = await buildSharedStringStyleMap(zip);
+    const rawXml = await sharedStringsFile.async("string");
+    const doc = new DOMParser().parseFromString(rawXml, "text/xml");
+    const siList = doc.getElementsByTagNameNS(SS_NS, "si");
+    const siBlocks = findContainerBlocks(rawXml, "si");
+
+    const edits = [];
+    if (siBlocks.length === siList.length){
+      for (let i=0;i<siList.length;i++){
+        const block = siBlocks[i];
+        if (block.selfClosing) continue;
+        const text = getSiPlainText(siList[i]);
+        if (!containsKanji(text)) continue;
+        if (hasExistingFurigana(block.text) && !overwriteExisting) continue;
+
+        const { ranges, unresolved } = getFuriganaRanges(text, tokenizer);
+        if (ranges.length === 0) continue;
+
+        const fontId = resolveFontId(sharedStringStyleMap.get(i));
+        edits.push({ start: block.start, end: block.end, text: rebuildBlock(block.text, "si", ranges, fontId) });
+        modifiedSiIndexes.add(i);
+        onProgress && onProgress(`セル文字列`, buildRubyHtml(text, ranges, unresolved), unresolved);
+      }
+    }
+    if (edits.length > 0){
+      zip.file(sharedStringsPath, applyReplacements(rawXml, edits));
+    }
+  }
+
+  const sheetFiles = Object.keys(zip.files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f));
+  for (const sheetPath of sheetFiles){
+    const sheetName = sheetPath.match(/sheet(\d+)\.xml$/)[1];
+    const rawXml = await zip.file(sheetPath).async("string");
+    const doc = new DOMParser().parseFromString(rawXml, "text/xml");
+    const cells = doc.getElementsByTagNameNS(SS_NS, "c");
+    const isBlocks = findContainerBlocks(rawXml, "is");
+    let isCursor = 0;
+
+    const edits = [];
+
+    for (let i=0;i<cells.length;i++){
+      const c = cells[i];
+      const t = c.getAttribute("t");
+      const ref = c.getAttribute("r") || "";
+
+      if (t === "s"){
+        const vEl = c.getElementsByTagNameNS(SS_NS, "v")[0];
+        if (vEl){
+          const idx = parseInt(vEl.textContent, 10);
+          if (modifiedSiIndexes.has(idx)){
+            const phIns = findPhAttrInsertion(rawXml, ref);
+            if (phIns) edits.push(phIns);
+          }
+        }
+      } else if (t === "inlineStr"){
+        const isBlock = isBlocks[isCursor];
+        isCursor++;
+        if (!isBlock || isBlock.selfClosing) continue;
+        const isEl = c.getElementsByTagNameNS(SS_NS, "is")[0];
+        if (!isEl) continue;
+        const text = getSiPlainText(isEl);
+        if (!containsKanji(text)) continue;
+        if (hasExistingFurigana(isBlock.text) && !overwriteExisting) continue;
+
+        const { ranges, unresolved } = getFuriganaRanges(text, tokenizer);
+        if (ranges.length === 0) continue;
+
+        const styleIndex = c.getAttribute("s");
+        const fontId = resolveFontId(styleIndex != null ? parseInt(styleIndex, 10) : 0);
+        edits.push({ start: isBlock.start, end: isBlock.end, text: rebuildBlock(isBlock.text, "is", ranges, fontId) });
+        const phIns = findPhAttrInsertion(rawXml, ref);
+        if (phIns) edits.push(phIns);
+        onProgress && onProgress(`シート${sheetName} / ${ref}`, buildRubyHtml(text, ranges, unresolved), unresolved);
+      }
+    }
+
+    if (edits.length > 0){
+      zip.file(sheetPath, applyReplacements(rawXml, edits));
+    }
+  }
+
+  const newStylesXml = buildStylesXmlWithNewFonts(fontTable);
+  if (newStylesXml) zip.file("xl/styles.xml", newStylesXml);
+
+  return await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+/* ---------------- UI wiring ---------------- */
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const generateBtn = document.getElementById("generateBtn");
+const fnameEl = document.getElementById("fname");
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", (e) => {
+  if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+function handleFile(file){
+  const name = file.name.toLowerCase();
+  if (!name.endsWith(".xlsx")){
+    setStatus("xlsx ファイルを選択してください", false);
+    return;
+  }
+  selectedFile = file;
+  fnameEl.innerHTML = escapeHtml(file.name) + `<span class="badge">Excel</span>`;
+  generateBtn.disabled = false;
+  setStatus("準備完了。「ふりがなを付けて生成」を押してください", false);
+  document.getElementById("previewSection").style.display = "none";
+  document.getElementById("previewBody").innerHTML = "";
+}
+
+generateBtn.addEventListener("click", async () => {
+  if (!selectedFile) return;
+  generateBtn.disabled = true;
+  document.getElementById("previewBody").innerHTML = "";
+  document.getElementById("previewSection").style.display = "block";
+  const overwriteNote = overwriteExistingEnabled()
+    ? "元のファイルに既にふりがなが設定されているセルも上書きして再生成します。"
+    : "既にふりがなが設定されているセルはスキップします。";
+  document.getElementById("previewNotice").innerHTML =
+    `<div class="notice ok">Excel の標準ふりがな機能として埋め込みます。${overwriteNote}</div>`;
+
+  const unresolvedSurfaces = new Set();
+
+  try{
+    setStatus("辞書を読み込んでいます(初回は数秒かかります)…", true);
+    await getTokenizer();
+    setStatus("解析してふりがなを付与しています…", true);
+
+    const arrayBuffer = await selectedFile.arrayBuffer();
+    const onProgress = (loc, html, unresolved) => {
+      addPreviewRow(loc, html);
+      if (unresolved) for (const u of unresolved) unresolvedSurfaces.add(u.surface);
+    };
+    const blob = await processExcel(arrayBuffer, onProgress);
+
+    if (unresolvedSurfaces.size > 0){
+      const list = Array.from(unresolvedSurfaces).join("、");
+      const existingNotice = document.getElementById("previewNotice").innerHTML;
+      document.getElementById("previewNotice").innerHTML = existingNotice +
+        `<div class="notice warn" style="margin-top:8px;">次の語は辞書から読みを特定できず、ふりがなが付いていません(プレビューでオレンジ色のハイライトで表示): <strong>${escapeHtml(list)}</strong><br>` +
+        `「01設定」のカスタム辞書に「単語,読み」の形式で追加すると、再生成時に反映されます。もしくは生成後 Excel 上で直接ふりがなを編集してください。</div>`;
+    }
+
+    const baseName = selectedFile.name.replace(/\.xlsx$/i, "");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${baseName}_furigana.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    setStatus("完了しました。ダウンロードを確認してください。", false);
+  } catch (err){
+    console.error(err);
+    setStatus("エラーが発生しました: " + (err && err.message ? err.message : String(err)), false);
+  } finally {
+    generateBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
