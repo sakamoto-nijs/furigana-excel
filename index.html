@@ -326,7 +326,7 @@ function katakanaToHiragana(s){
 function getTokenizer(){
   if (tokenizerPromise) return tokenizerPromise;
   tokenizerPromise = new Promise((resolve, reject) => {
-    kuromoji.builder({ dicPath: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/" }).build((err, tokenizer) => {
+    kuromoji.builder({ dicPath: "dict/" }).build((err, tokenizer) => {
       if (err) reject(err); else resolve(tokenizer);
     });
   });
