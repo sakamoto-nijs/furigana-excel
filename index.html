@@ -379,6 +379,26 @@ function findCustomRanges(text, customDict, toHira){
 // spans kuromoji recognized but could not supply a reading for (typically
 // proper nouns / rare kanji variants not in the general-purpose dictionary) -
 // these are flagged in the preview instead of silently skipped.
+const HIRAGANA_RE = /^[\u3041-\u3096]$/;
+
+// Trims trailing okurigana (e.g. "大きい" -> kanji span "大" + reading "おお",
+// leaving "きい" as plain, un-annotated hiragana) by comparing the surface's
+// trailing hiragana characters against the reading's trailing characters
+// (both normalized to hiragana for the comparison) and shrinking both by the
+// same count wherever they match, stopping at the first non-hiragana
+// (kanji) character encountered.
+function trimOkuriganaCount(surface, readingHiragana){
+  let sPos = surface.length, rPos = readingHiragana.length, trimCount = 0;
+  while (sPos > 0 && rPos > 0){
+    const sChar = surface[sPos-1];
+    const rChar = readingHiragana[rPos-1];
+    if (!HIRAGANA_RE.test(sChar)) break;
+    if (sChar !== rChar) break;
+    sPos--; rPos--; trimCount++;
+  }
+  return trimCount;
+}
+
 function getFuriganaRanges(text, tokenizer){
   const toHira = readingTypeSuffix() === "hiragana";
   const customDict = parseCustomDict();
@@ -397,8 +417,12 @@ function getFuriganaRanges(text, tokenizer){
     for (let i=start;i<end;i++) if (used[i]) { overlapsUsed = true; break; }
     if (overlapsUsed) continue;
     if (t.reading){
-      const reading = toHira ? katakanaToHiragana(t.reading) : t.reading;
-      autoRanges.push({ sb:start, eb:end, reading, custom:false });
+      const readingHiragana = katakanaToHiragana(t.reading);
+      const finalReadingFull = toHira ? readingHiragana : t.reading;
+      const trimCount = trimOkuriganaCount(surface, readingHiragana);
+      const newEnd = end - trimCount;
+      const reading = trimCount > 0 ? finalReadingFull.slice(0, finalReadingFull.length - trimCount) : finalReadingFull;
+      autoRanges.push({ sb:start, eb:newEnd, reading, custom:false });
     } else {
       unresolved.push({ sb:start, eb:end, surface });
     }
